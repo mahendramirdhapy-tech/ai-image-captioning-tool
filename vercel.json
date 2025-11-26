@@ -12,16 +12,12 @@
   ],
   "routes": [
     {
-      "src": "/api/caption",
-      "dest": "/api/caption.js",
-      "methods": ["GET", "POST"]
+      "src": "/api/(.*)",
+      "dest": "/api/caption.js"
     },
     {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

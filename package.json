@@ -1,0 +1,22 @@
+{
+  "name": "ai-image-captioning-tool",
+  "version": "1.0.0",
+  "description": "AI-powered image captioning tool with free and paid plans",
+  "main": "api/caption.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "vercel": "^28.16.0"
+  },
+  "keywords": ["ai", "image-captioning", "openrouter", "vercel"],
+  "author": "AI Captioning Tool",
+  "license": "MIT"
+}

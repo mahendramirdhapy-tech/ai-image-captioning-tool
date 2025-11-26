@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Captioning Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #4f46e5;
+            background-color: #f8fafc;
+        }
+
+        .upload-area.drag-over {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #9ca3af;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #6b7280;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .preview-container {
+            display: none;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .button {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .button.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-container {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .result-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 15px;
+        }
+
+        #captionResult {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+
+        .usage-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .usage-title {
+            font-weight: 600;
+            color: #0369a1;
+            margin-bottom: 5px;
+        }
+
+        .usage-details {
+            color: #0c4a6e;
+            font-size: 0.9rem;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-size: 0.9rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        @media (max-width: 640px) {
+            .content {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .upload-area {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI Image Captioning</h1>
+            <p>Upload an image and get an AI-generated description</p>
+        </div>
+
+        <div class="content">
+            <div class="usage-info" id="usageInfo">
+                <div class="usage-title">Usage Information</div>
+                <div class="usage-details" id="usageDetails"></div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📷</div>
+                <div class="upload-text">Click to upload or drag & drop an image</div>
+                <div class="upload-hint">Supports JPG, PNG, WebP (Max 10MB)</div>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+
+            <div class="preview-container" id="previewContainer">
+                <img id="imagePreview" alt="Preview">
+            </div>
+
+            <button class="button" id="generateBtn" disabled>
+                Generate Caption
+            </button>
+
+            <div class="result-container" id="resultContainer">
+                <div class="result-title">AI-Generated Caption:</div>
+                <div id="captionResult"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by OpenRouter AI • Free plan: 5 images per day</p>
+        </div>
+    </div>
+
+    <script>
+        class ImageCaptioningApp {
+            constructor() {
+                this.fileInput = document.getElementById('fileInput');
+                this.uploadArea = document.getElementById('uploadArea');
+                this.previewContainer = document.getElementById('previewContainer');
+                this.imagePreview = document.getElementById('imagePreview');
+                this.generateBtn = document.getElementById('generateBtn');
+                this.resultContainer = document.getElementById('resultContainer');
+                this.captionResult = document.getElementById('captionResult');
+                this.usageInfo = document.getElementById('usageInfo');
+                this.usageDetails = document.getElementById('usageDetails');
+                this.errorMessage = document.getElementById('errorMessage');
+
+                this.currentFile = null;
+                this.userId = this.generateUserId();
+
+                this.initEventListeners();
+                this.loadUsageInfo();
+            }
+
+            generateUserId() {
+                let userId = localStorage.getItem('ai_caption_user_id');
+                if (!userId) {
+                    userId = 'user_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('ai_caption_user_id', userId);
+                }
+                return userId;
+            }
+
+            initEventListeners() {
+                this.uploadArea.addEventListener('click', () => {
+                    this.fileInput.click();
+                });
+
+                this.fileInput.addEventListener('change', (e) => {
+                    this.handleFileSelect(e);
+                });
+
+                this.uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.classList.add('drag-over');
+                });
+
+                this.uploadArea.addEventListener('dragleave', () => {
+                    this.uploadArea.classList.remove('drag-over');
+                });
+
+                this.uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.uploadArea.classList.remove('drag-over');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFile(files[0]);
+                    }
+                });
+
+                this.generateBtn.addEventListener('click', () => {
+                    this.generateCaption();
+                });
+            }
+
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.handleFile(file);
+                }
+            }
+
+            handleFile(file) {
+                if (!file.type.startsWith('image/')) {
+                    this.showError('Please select a valid image file.');
+                    return;
+                }
+
+                if (file.size > 10 * 1024 * 1024) {
+                    this.showError('Image size must be less than 10MB.');
+                    return;
+                }
+
+                this.currentFile = file;
+                this.hideError();
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.imagePreview.src = e.target.result;
+                    this.previewContainer.style.display = 'block';
+                    this.generateBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            async generateCaption() {
+                if (!this.currentFile) return;
+
+                this.generateBtn.classList.add('loading');
+                this.generateBtn.disabled = true;
+                this.hideError();
+                this.hideResult();
+
+                const formData = new FormData();
+                formData.append('image', this.currentFile);
+
+                try {
+                    const response = await fetch('/api/caption', {
+                        method: 'POST',
+                        headers: {
+                            'X-User-Id': this.userId
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to generate caption');
+                    }
+
+                    this.showResult(data.caption);
+                    this.updateUsageInfo(data.plan, data.remaining);
+
+                } catch (error) {
+                    this.showError(error.message);
+                    this.generateBtn.disabled = false;
+                } finally {
+                    this.generateBtn.classList.remove('loading');
+                }
+            }
+
+            async loadUsageInfo() {
+                try {
+                    // We'll get usage info from the next API call
+                    this.usageInfo.style.display = 'block';
+                    this.usageDetails.textContent = 'Free plan: 5 images per day • Your usage will update after generating a caption';
+                } catch (error) {
+                    console.error('Failed to load usage info:', error);
+                }
+            }
+
+            updateUsageInfo(plan, remaining) {
+                this.usageInfo.style.display = 'block';
+                
+                if (plan === 'paid') {
+                    this.usageDetails.textContent = 'Paid Plan: Unlimited generations';
+                } else {
+                    this.usageDetails.textContent = `Free Plan: ${remaining} images remaining today`;
+                    
+                    if (remaining === 0) {
+                        this.usageDetails.innerHTML += '<br><strong>Upgrade to paid for unlimited access</strong>';
+                    }
+                }
+            }
+
+            showResult(caption) {
+                this.captionResult.textContent = caption;
+                this.resultContainer.style.display = 'block';
+                this.generateBtn.disabled = false;
+            }
+
+            hideResult() {
+                this.resultContainer.style.display = 'none';
+            }
+
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.display = 'block';
+            }
+
+            hideError() {
+                this.errorMessage.style.display = 'none';
+            }
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new ImageCaptioningApp();
+        });
+    </script>
+</body>
+</html>

@@ -12,12 +12,16 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/caption.js"
+      "src": "/api/caption",
+      "dest": "/api/caption.js",
+      "methods": ["GET", "POST", "OPTIONS"]
     },
     {
       "src": "/(.*)",
-      "dest": "/public/$1"
+      "dest": "/public/$1",
+      "headers": {
+        "Cache-Control": "s-maxage=86400"
+      }
     }
   ]
 }

@@ -16,15 +16,16 @@ const TIMEOUT = 10000; // 10 seconds
 
 /**
  * Generate caption from image using OpenRouter AI models with fallback
- * @param {string} imageBase64 - Base64 encoded image
- * @returns {Promise<string>} - Generated caption
  */
 async function getCaptionFromImage(imageBase64) {
   if (!OPENROUTER_API_KEY) {
-    throw new Error('OpenRouter API key not configured');
+    logger.error('OpenRouter API key not configured');
+    throw new Error('OpenRouter API key not configured. Please check environment variables.');
   }
 
-  const prompt = `Please describe this image in detail. Be specific about objects, people, colors, setting, and any text visible. Provide a comprehensive caption that would be useful for someone who cannot see the image.`;
+  const prompt = `Please describe this image in detail. Be specific about objects, people, colors, setting, and any text visible. Provide a comprehensive caption that would be useful for someone who cannot see the image. Keep the description concise but informative.`;
+
+  let lastError = '';
 
   // Try models in order until one succeeds
   for (const model of FREE_MODELS) {
@@ -34,12 +35,14 @@ async function getCaptionFromImage(imageBase64) {
       logger.info(`Success with model: ${model}`);
       return caption;
     } catch (error) {
-      logger.warn(`Model ${model} failed:`, error.message);
+      lastError = error.message;
+      logger.warn(`Model ${model} failed: ${error.message}`);
       // Continue to next model
     }
   }
 
   // All models failed
+  logger.error('All AI models failed:', lastError);
   throw new Error('AI service is temporarily unavailable. Try again.');
 }
 
@@ -47,65 +50,80 @@ async function getCaptionFromImage(imageBase64) {
  * Try a specific model for caption generation
  */
 async function tryModel(model, imageBase64, prompt) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+  return new Promise(async (resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Model timeout after ${TIMEOUT}ms`));
+    }, TIMEOUT);
 
-  try {
-    const response = await axios.post(
-      `${OPENROUTER_BASE_URL}/chat/completions`,
-      {
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageBase64
+    try {
+      const response = await axios.post(
+        `${OPENROUTER_BASE_URL}/chat/completions`,
+        {
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: prompt
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: imageBase64
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 300
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://ai-caption-tool.vercel.app',
-          'X-Title': 'AI Image Captioning Tool'
+              ]
+            }
+          ],
+          max_tokens: 300,
+          temperature: 0.7
         },
-        signal: controller.signal,
-        timeout: TIMEOUT
+        {
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://ai-caption-tool.vercel.app',
+            'X-Title': 'AI Image Captioning Tool'
+          },
+          timeout: TIMEOUT
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (response.data && 
+          response.data.choices && 
+          response.data.choices[0] && 
+          response.data.choices[0].message && 
+          response.data.choices[0].message.content) {
+        
+        const caption = response.data.choices[0].message.content.trim();
+        if (caption && caption.length > 0) {
+          resolve(caption);
+        } else {
+          reject(new Error('Empty response from AI model'));
+        }
+      } else {
+        reject(new Error('Invalid response format from AI model'));
       }
-    );
-
-    clearTimeout(timeoutId);
-
-    if (response.data.choices && response.data.choices[0]) {
-      return response.data.choices[0].message.content.trim();
-    } else {
-      throw new Error('Invalid response from AI model');
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.code === 'ECONNABORTED') {
+        reject(new Error(`Model timeout after ${TIMEOUT}ms`));
+      } else if (error.response) {
+        const status = error.response.status;
+        const errorMsg = error.response.data?.error?.message || error.response.statusText;
+        reject(new Error(`API error (${status}): ${errorMsg}`));
+      } else if (error.request) {
+        reject(new Error('No response received from AI service'));
+      } else {
+        reject(new Error(`Request failed: ${error.message}`));
+      }
     }
-  } catch (error) {
-    clearTimeout(timeoutId);
-    
-    if (error.name === 'AbortError') {
-      throw new Error(`Model ${model} timeout after ${TIMEOUT}ms`);
-    }
-    
-    if (error.response) {
-      throw new Error(`Model ${model} API error: ${error.response.status} - ${error.response.data?.error?.message || 'Unknown error'}`);
-    }
-    
-    throw new Error(`Model ${model} failed: ${error.message}`);
-  }
+  });
 }
 
 module.exports = {

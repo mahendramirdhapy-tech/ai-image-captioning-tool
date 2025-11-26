@@ -1,8 +1,7 @@
 const express = require('express');
 const multer = require('multer');
-const axios = require('axios');
 const { getCaptionFromImage } = require('../services/ai');
-const { checkUsageLimit, getUserPlan } = require('../services/plan');
+const { checkUsageLimit } = require('../services/plan');
 const { logger } = require('../utils/logger');
 
 const router = express.Router();
@@ -13,7 +12,6 @@ const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -24,16 +22,31 @@ const upload = multer({
   }
 });
 
+// CORS middleware
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-User-Id');
+  next();
+});
+
 router.post('/caption', upload.single('image'), async (req, res) => {
   try {
-    const userIdentifier = req.headers['x-user-id'] || req.ip || 'anonymous';
+    // Generate user identifier
+    const userIdentifier = req.headers['x-user-id'] || 
+                          req.ip || 
+                          `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    logger.info('Caption request received', { userIdentifier });
+
     const imageFile = req.file;
     const imageBase64 = req.body.imageBase64;
 
     // Validate input
     if (!imageFile && !imageBase64) {
       return res.status(400).json({
-        error: 'Either image file or imageBase64 is required'
+        error: 'Either image file or imageBase64 is required',
+        success: false
       });
     }
 
@@ -41,10 +54,10 @@ router.post('/caption', upload.single('image'), async (req, res) => {
     const planCheck = await checkUsageLimit(userIdentifier);
     if (!planCheck.allowed) {
       return res.status(429).json({
-        error: 'Daily limit exceeded',
+        error: 'Daily limit exceeded. Upgrade to paid plan for unlimited access.',
         plan: planCheck.plan,
         remaining: 0,
-        resetTime: planCheck.resetTime
+        success: false
       });
     }
 
@@ -63,21 +76,19 @@ router.post('/caption', upload.single('image'), async (req, res) => {
       }
     }
 
+    logger.info('Getting caption from AI service...');
+
     // Get caption from AI service
     const caption = await getCaptionFromImage(base64String);
     
+    logger.info('Caption generated successfully');
+
     // Return success response
     res.json({
       caption: caption,
       plan: planCheck.plan,
       remaining: planCheck.remaining,
       success: true
-    });
-
-    logger.info('Caption generated successfully', {
-      userIdentifier,
-      plan: planCheck.plan,
-      remaining: planCheck.remaining
     });
 
   } catch (error) {
@@ -87,20 +98,37 @@ router.post('/caption', upload.single('image'), async (req, res) => {
       return res.status(429).json({
         error: 'Daily limit exceeded',
         plan: 'free',
-        remaining: 0
+        remaining: 0,
+        success: false
+      });
+    }
+
+    if (error.message.includes('AI service is temporarily unavailable')) {
+      return res.status(503).json({
+        error: 'AI service is temporarily unavailable. Please try again in a few moments.',
+        success: false
       });
     }
 
     res.status(500).json({
-      error: 'Failed to generate caption',
-      message: error.message
+      error: 'Failed to generate caption: ' + error.message,
+      success: false
     });
   }
 });
 
 // Health check endpoint
 router.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'AI Image Captioning'
+  });
+});
+
+// Handle OPTIONS for CORS
+router.options('/caption', (req, res) => {
+  res.status(200).end();
 });
 
 module.exports = router;

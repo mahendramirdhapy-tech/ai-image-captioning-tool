@@ -2,10 +2,11 @@
   "name": "ai-image-captioning-tool",
   "version": "1.0.0",
   "description": "AI-powered image captioning tool with free and paid plans",
-  "main": "api/caption.js",
+  "main": "api.js",
   "scripts": {
-    "dev": "vercel dev",
-    "start": "node server.js"
+    "dev": "node api.js",
+    "start": "node api.js",
+    "vercel-dev": "vercel dev"
   },
   "dependencies": {
     "axios": "^1.6.0",
